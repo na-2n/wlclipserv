@@ -230,7 +230,7 @@ int main(int argc, char **argv)
 
             f = fdopen(clientfd, "w+");
 
-            fprintf(f, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n%s", clipboard_cur);
+            fprintf(f, "HTTP/1.1 200 OK\r\nContent-Length: %lu\r\nContent-Type: " TXT_MIMETYPE "\r\n\r\n%s", clipboard_cur_len, clipboard_cur);
             fflush(f);
             shutdown(clientfd, SHUT_RDWR);
             close(clientfd);
