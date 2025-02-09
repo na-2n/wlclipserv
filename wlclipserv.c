@@ -1,11 +1,13 @@
 #define _POSIX_SOURCE
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <getopt.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
@@ -14,8 +16,7 @@
 
 #include "protocol/wlr-data-control-unstable-v1-client-protocol.h"
 
-#define PORT 2653
-
+#define DEFAULT_PORT 2653
 #define TXT_MIMETYPE "text/plain;charset=utf-8"
 
 char clipboard_cur[BUFSIZ];
@@ -28,6 +29,15 @@ struct wl_seat *seat = NULL;
 struct wl_display *display = NULL;
 struct zwlr_data_control_manager_v1 *data_control_manager = NULL;
 struct zwlr_data_control_offer_v1 *accepted_offer = NULL;
+
+void usage(const char *prog)
+{
+    printf("usage: %s\n"
+           "    -b 127.0.0.1   Address to bind to\n"
+           "    -p 2653        Port to bind to\n"
+           "    -y             Ignore any warnings\n"
+           "    -h             Display this message\n", prog);
+}
 
 void registry_global_handler(void *data, struct wl_registry *reg, uint32_t name, const char *iface, uint32_t ver)
 {
@@ -146,7 +156,7 @@ int init_wl_client()
     return 0;
 }
 
-int init_socket() {
+int init_socket(in_addr_t addr, int port) {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
         fprintf(stderr, "Could not open socket\n");
@@ -168,10 +178,10 @@ int init_socket() {
 
     const struct sockaddr_in bind_addr = {
         .sin_family = AF_INET,
-        .sin_port = htons(PORT),
+        .sin_port = port,
         // NEVER bind to anything OTHER than localhost
         //  we do not want to accidentally expose our clipboard to the internet...
-        .sin_addr.s_addr = inet_addr("127.0.0.1"),
+        .sin_addr.s_addr = addr,
     };
 
     if (bind(sockfd, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) == -1) {
@@ -209,16 +219,56 @@ int http_accept()
 int main(int argc, char **argv)
 {
     int status = 0;
+    bool warn = true;
+
+    in_addr_t bind_addr = htonl(INADDR_LOOPBACK);
+    int bind_port = DEFAULT_PORT;
+
+    int opt;
+    while ((opt = getopt(argc, argv, "b:p:yh")) != -1) {
+        switch (opt) {
+            case 'h':
+                usage(argv[0]);
+                return status;
+
+            case 'y':
+                warn = false;
+                break;
+
+            case 'b':
+                bind_addr = inet_addr(optarg);
+
+                if (bind_addr == -1) {
+                    fprintf(stderr, "Invalid bind address");
+
+                    return 1;
+                }
+                break;
+
+            case 'p':
+                bind_port = atoi(optarg);
+                break;
+        }
+    }
+
+    if (warn && bind_addr != htonl(INADDR_LOOPBACK)) {
+        fprintf(stderr, "WARNING!! BINDING TO A NON-LOOPBACK INTERFACE!\nTHIS MIGHT EXPOSE YOUR CLIPBOARD TO THE INTERNET!\nAre you sure you want to continue? [y/N] ");
+
+        int c = fgetc(stdin);
+        if (c != 'y' && c != 'Y') {
+            return 1;
+        }
+    }
 
     if ((status = init_wl_client()) != 0) {
         return status;
     }
 
-    if ((status = init_socket()) != 0) {
+    if ((status = init_socket(bind_addr, bind_port)) != 0) {
         goto cleanup;
     }
 
-    printf("Started listening on port %i\n", PORT);
+    printf("Started listening on port %i\n", bind_port);
 
     FILE *f;
     int clientfd;
@@ -239,8 +289,8 @@ int main(int argc, char **argv)
     }
     while (wl_display_dispatch_pending(display) != -1);
 
-cleanup:
     close(sockfd);
+cleanup:
     wl_display_disconnect(display);
     close(pipes[0]);
     close(pipes[1]);
