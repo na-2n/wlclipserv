@@ -178,7 +178,7 @@ int init_socket(in_addr_t addr, int port) {
 
     const struct sockaddr_in bind_addr = {
         .sin_family = AF_INET,
-        .sin_port = port,
+        .sin_port = htons(port),
         // NEVER bind to anything OTHER than localhost
         //  we do not want to accidentally expose our clipboard to the internet...
         .sin_addr.s_addr = addr,
