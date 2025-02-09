@@ -22,8 +22,8 @@
 char clipboard_cur[BUFSIZ];
 ssize_t clipboard_cur_len = 0;
 bool have_seat = false;
+int sockfd = -1;
 int pipes[2];
-int sockfd;
 
 struct wl_seat *seat = NULL;
 struct wl_display *display = NULL;
@@ -285,12 +285,13 @@ int main(int argc, char **argv)
             shutdown(clientfd, SHUT_RDWR);
             close(clientfd);
         }
-
     }
     while (wl_display_dispatch_pending(display) != -1);
 
-    close(sockfd);
 cleanup:
+    if (sockfd != -1) {
+        close(sockfd);
+    }
     wl_display_disconnect(display);
     close(pipes[0]);
     close(pipes[1]);
