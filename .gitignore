@@ -1,0 +1,3 @@
+protocol/*.[ch]
+*.o
+wlclipserv
