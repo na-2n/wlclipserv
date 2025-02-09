@@ -66,17 +66,21 @@ void data_control_offer_handler(void *data, struct zwlr_data_control_device_v1 *
 
 void data_control_selection_handler(void *data, struct zwlr_data_control_device_v1 *dev, struct zwlr_data_control_offer_v1 *offer)
 {
-    if (offer && offer == accepted_offer) {
-        zwlr_data_control_offer_v1_receive(offer, TXT_MIMETYPE, pipes[1]);
-        wl_display_roundtrip(display);
+    if (offer) {
+        if (offer == accepted_offer) {
+            zwlr_data_control_offer_v1_receive(offer, TXT_MIMETYPE, pipes[1]);
+            wl_display_roundtrip(display);
 
-        memset(clipboard_cur, 0, BUFSIZ);
-        clipboard_cur_len = read(pipes[0], clipboard_cur, BUFSIZ);
-        if (clipboard_cur_len == -1) {
-            fprintf(stderr, "failed to read clipboard data\n");
+            memset(clipboard_cur, 0, BUFSIZ);
+            clipboard_cur_len = read(pipes[0], clipboard_cur, BUFSIZ);
+            if (clipboard_cur_len == -1) {
+                fprintf(stderr, "failed to read clipboard data\n");
+            }
+
+            accepted_offer = NULL;
+        } else {
+            zwlr_data_control_offer_v1_destroy(offer);
         }
-
-        accepted_offer = NULL;
     }
 }
 
@@ -213,6 +217,8 @@ int main(int argc, char **argv)
     if ((status = init_socket()) != 0) {
         goto cleanup;
     }
+
+    printf("Started listening on port %i\n", PORT);
 
     FILE *f;
     int clientfd;
